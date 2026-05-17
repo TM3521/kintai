@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>勤怠イレギュラーメモ</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f0ede8; --surface: #faf9f7; --surface2: #ece9e3;
+  --border: rgba(0,0,0,0.09); --border-md: rgba(0,0,0,0.16);
+  --text: #1a1917; --text-muted: #6b6860; --text-faint: #a09d98;
+  --red: #c0392b; --red-bg: #fdf0ee; --red-border: rgba(192,57,43,.2);
+  --blue: #1a56db; --blue-bg: #eff4ff; --blue-border: rgba(26,86,219,.2);
+  --green: #15803d; --green-bg: #f0fdf4; --green-border: rgba(21,128,61,.2);
+  --amber: #92400e; --amber-bg: #fffbeb; --amber-border: rgba(146,64,14,.2);
+  --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: rgba(91,33,182,.2);
+  --radius: 12px; --radius-sm: 8px; --radius-xs: 5px;
+}
+body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 14px 80px; font-size: 14px; max-width: 480px; margin: 0 auto; }
+.header { margin-bottom: 16px; }
+.header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.header p { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+
+/* 人切り替え */
+.person-bar { display: flex; gap: 6px; margin-bottom: 14px; }
+.person-btn {
+  flex: 1; padding: 10px 4px; border: 2px solid var(--border-md);
+  border-radius: var(--radius-sm); font-size: 13px; font-family: inherit;
+  cursor: pointer; background: var(--surface); color: var(--text-muted);
+  font-weight: 600; transition: all .15s; text-align: center;
+}
+.person-btn.active-self     { background: #1a1917; border-color: #1a1917; color: #fff; }
+.person-btn.active-h        { background: #1a56db; border-color: #1a56db; color: #fff; }
+.person-btn.active-k        { background: #15803d; border-color: #15803d; color: #fff; }
+.person-indicator {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 14px;
+  font-size: 12px; color: var(--text-muted);
+}
+.person-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-self { background: #1a1917; }
+.dot-h    { background: #1a56db; }
+.dot-k    { background: #15803d; }
+.person-name { font-weight: 700; color: var(--text); }
+
+/* タブ */
+.tab-bar { display: flex; gap: 6px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; }
+.tab { flex: 1; padding: 8px 4px; border: none; border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; cursor: pointer; background: transparent; color: var(--text-muted); font-weight: 500; transition: all .15s; }
+.tab.active { background: var(--text); color: #fff; }
+.section { display: none; } .section.visible { display: block; }
+
+/* タイプカード */
+.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.type-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 14px 12px; cursor: pointer; transition: all .15s; text-align: left; }
+.type-card.sel-remote   { border-color: var(--green);  background: var(--green-bg); }
+.type-card.sel-training { border-color: var(--amber);  background: var(--amber-bg); }
+.type-card.sel-holiday  { border-color: var(--blue);   background: var(--blue-bg); }
+.type-card.sel-late     { border-color: var(--red);    background: var(--red-bg); }
+.type-card.sel-bukai    { border-color: var(--purple); background: var(--purple-bg); }
+.type-icon { font-size: 20px; margin-bottom: 6px; display: block; }
+.type-name { font-size: 13px; font-weight: 700; display: block; }
+.type-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; display: block; }
+
+/* フォーム */
+.entry-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; display: none; }
+.entry-form.open { display: block; }
+.form-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; letter-spacing: .03em; }
+.field input[type=date], .field input[type=time], .field input[type=text], .field input[type=number], .field textarea, .field select {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border-md); border-radius: var(--radius-xs); padding: 9px 11px; font-size: 16px; font-family: inherit; color: var(--text); -webkit-appearance: none; appearance: none;
+}
+.field textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+.time-row { display: flex; gap: 8px; align-items: center; }
+.time-row input { flex: 1; }
+.time-row span { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+.checklist-label { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .03em; margin-bottom: 8px; display: block; }
+.checklist { display: flex; flex-direction: column; gap: 6px; }
+.cl-item { background: var(--surface2); border-radius: var(--radius-xs); padding: 9px 11px; font-size: 12px; line-height: 1.5; border-left: 3px solid var(--border-md); }
+.cl-item.gemba { border-left-color: #e07b30; }
+.cl-item.jisha { border-left-color: var(--blue); }
+.cl-sys { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-right: 5px; }
+.sys-gemba { background: #fdf0e0; color: #b05a10; }
+.sys-jisha { background: var(--blue-bg); color: var(--blue); }
+.btn-add { width: 100%; padding: 12px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 14px; font-family: inherit; font-weight: 700; cursor: pointer; margin-top: 14px; }
+
+/* 一覧 */
+.month-filter { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; }
+.month-filter button { background: none; border: 1px solid var(--border-md); border-radius: var(--radius-xs); width: 28px; height: 28px; cursor: pointer; font-size: 14px; color: var(--text-muted); }
+.month-filter .mlabel { font-size: 14px; font-weight: 700; }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-faint); font-size: 13px; line-height: 1.7; }
+.entry-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.entry-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; flex-wrap: wrap; }
+.entry-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
+.eb-remote   { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+.eb-training { background: var(--amber-bg);  color: var(--amber);  border: 1px solid var(--amber-border); }
+.eb-holiday  { background: var(--blue-bg);   color: var(--blue);   border: 1px solid var(--blue-border); }
+.eb-late     { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+.eb-bukai    { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.entry-date { font-size: 14px; font-weight: 700; }
+.entry-preview { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.entry-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.entry-chevron { font-size: 12px; color: var(--text-faint); transition: transform .2s; }
+.entry-chevron.open { transform: rotate(180deg); }
+.entry-body { padding: 0 14px; max-height: 0; overflow: hidden; transition: max-height .25s ease, padding .25s; }
+.entry-body.open { max-height: 600px; padding: 12px 14px; }
+.entry-detail { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.6; }
+.task-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; cursor: pointer; }
+.task-item:last-of-type { border-bottom: none; }
+.task-item input[type=checkbox] { margin-top: 2px; flex-shrink: 0; accent-color: var(--text); width: 15px; height: 15px; }
+.task-item label { cursor: pointer; flex: 1; line-height: 1.5; }
+.task-item.done label { text-decoration: line-through; color: var(--text-faint); }
+.entry-footer { display: flex; justify-content: flex-end; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border); }
+.btn-delete { font-size: 12px; padding: 6px 14px; background: var(--red-bg); border: 1px solid var(--red-border); border-radius: var(--radius-xs); color: var(--red); cursor: pointer; font-family: inherit; font-weight: 600; }
+.done-badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.progress-text { font-size: 11px; color: var(--text-faint); }
+.bottom-btns { display: flex; gap: 8px; margin-top: 16px; }
+.bottom-btn { flex: 1; padding: 9px; background: var(--surface); border: 1px solid var(--border-md); border-radius: var(--radius-xs); font-size: 12px; font-family: inherit; cursor: pointer; color: var(--text-muted); }
+.import-area { display: none; margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; }
+.import-area .note { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+.import-area textarea { width: 100%; height: 80px; font-size: 13px; padding: 8px; border: 1px solid var(--border-md); border-radius: var(--radius-xs); background: var(--surface2); font-family: inherit; resize: none; }
+.import-area .btn-import { width: 100%; margin-top: 6px; padding: 9px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-xs); font-size: 13px; font-family: inherit; font-weight: 700; cursor: pointer; }
+
+/* コピーモーダル */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: flex-end; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; padding: 20px 18px 36px; width: 100%; max-width: 480px; }
+.modal-box h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.modal-box .modal-note { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.6; }
+.modal-box textarea { width: 100%; height: 120px; font-size: 13px; padding: 10px; border: 1px solid var(--border-md); border-radius: var(--radius-xs); background: var(--surface2); font-family: inherit; resize: none; }
+.modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+.modal-copy-btn { flex: 1; padding: 11px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 14px; font-family: inherit; font-weight: 700; cursor: pointer; }
+.modal-close-btn { padding: 11px 16px; background: none; border: 1px solid var(--border-md); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; cursor: pointer; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>勤怠イレギュラーメモ</h1>
+  <p>人を切り替えて登録・確認できます</p>
+</div>
+
+<!-- 人切り替え -->
+<div class="person-bar">
+  <button class="person-btn active-self" id="pb-self" onclick="selectPerson('self')">自分</button>
+  <button class="person-btn" id="pb-h" onclick="selectPerson('h')">Hさん</button>
+  <button class="person-btn" id="pb-k" onclick="selectPerson('k')">Kさん</button>
+</div>
+<div class="person-indicator">
+  <div class="person-dot dot-self" id="p-dot"></div>
+  <span>対象：</span><span class="person-name" id="p-name">自分</span>
+</div>
+
+<!-- タブ -->
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('new')">＋ 新規登録</button>
+  <button class="tab" onclick="showTab('list')">登録済み一覧</button>
+</div>
+
+<!-- 新規登録 -->
+<div id="new" class="section visible">
+  <div class="type-grid">
+    <div class="type-card" id="tc-remote"   onclick="selectType('remote')">  <span class="type-icon">🏠</span><span class="type-name">在宅切り替え</span>  <span class="type-desc">曜日がいつもと違う日</span></div>
+    <div class="type-card" id="tc-training" onclick="selectType('training')"><span class="type-icon">📚</span><span class="type-name">研修・社内イベント</span><span class="type-desc">HRMOSに加算必要</span></div>
+    <div class="type-card" id="tc-holiday"  onclick="selectType('holiday')"> <span class="type-icon">🌴</span><span class="type-name">休暇取得</span>         <span class="type-desc">有給・特休など</span></div>
+    <div class="type-card" id="tc-late"     onclick="selectType('late')">    <span class="type-icon">⏰</span><span class="type-name">遅刻・早退</span>       <span class="type-desc">時刻がいつもと違う</span></div>
+    <div class="type-card" id="tc-bukai"    onclick="selectType('bukai')">   <span class="type-icon">👥</span><span class="type-name">部会</span>             <span class="type-desc">19:00〜21:00・残業登録</span></div>
+  </div>
+
+  <div class="entry-form" id="form-remote">
+    <div class="form-title">🏠 在宅切り替え日の登録</div>
+    <div class="field"><label>日付</label><input type="date" id="r-date"></div>
+    <div class="field"><label>休憩時間（分）</label><input type="number" id="r-rest" placeholder="例：60" min="0" max="180"></div>
+    <div class="field"><label>メモ（任意）</label><textarea id="r-memo" placeholder="例：第3週は水曜に変更"></textarea></div>
+    <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
+      <div class="checklist">
+        <div class="cl-item gemba"><span class="cl-sys sys-gemba">現場システム</span>休憩時間を在宅切り替え時の時間にする</div>
+        <div class="cl-item gemba"><span class="cl-sys sys-gemba">現場Excel</span>休憩時間を在宅切り替え時の時間にする</div>
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">HRMOS</span>休憩時間を在宅切り替え時の時間にする</div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addEntry('remote')">登録する</button>
+  </div>
+
+  <div class="entry-form" id="form-training">
+    <div class="form-title">📚 研修・社内イベントの登録</div>
+    <div class="field"><label>日付</label><input type="date" id="t-date"></div>
+    <div class="field"><label>研修・イベント名</label><input type="text" id="t-name" placeholder="例：新人研修、全社会議"></div>
+    <div class="field"><label>研修時間</label>
+      <div class="time-row"><input type="time" id="t-start" value="10:00"><span>〜</span><input type="time" id="t-end" value="12:00"></div>
+    </div>
+    <div class="field"><label>メモ（任意）</label><textarea id="t-memo" placeholder="例：午後から現場復帰"></textarea></div>
+    <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
+      <div class="checklist">
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">HRMOS</span>勤務時間に研修時間を加算して入力する</div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addEntry('training')">登録する</button>
+  </div>
+
+  <div class="entry-form" id="form-holiday">
+    <div class="form-title">🌴 休暇取得の登録</div>
+    <div class="field"><label>日付</label><input type="date" id="h-date"></div>
+    <div class="field"><label>休暇種別</label>
+      <select id="h-type"><option>有給休暇</option><option>特別休暇</option><option>半休（午前）</option><option>半休（午後）</option></select>
+    </div>
+    <div class="field"><label>メモ（任意）</label><textarea id="h-memo" placeholder="例：午後から出勤予定"></textarea></div>
+    <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
+      <div class="checklist">
+        <div class="cl-item gemba"><span class="cl-sys sys-gemba">現場Excel</span>当日の欄に休暇種別を記入する</div>
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">HRMOS</span>休暇申請・勤務区分を正しく入力する</div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addEntry('holiday')">登録する</button>
+  </div>
+
+  <div class="entry-form" id="form-late">
+    <div class="form-title">⏰ 遅刻・早退の登録</div>
+    <div class="field"><label>日付</label><input type="date" id="l-date"></div>
+    <div class="field"><label>種別</label>
+      <select id="l-type"><option>遅刻</option><option>早退</option><option>遅刻＋早退</option></select>
+    </div>
+    <div class="field"><label>実際の出退勤時刻</label>
+      <div class="time-row"><input type="time" id="l-start"><span>〜</span><input type="time" id="l-end"></div>
+    </div>
+    <div class="field"><label>メモ（任意）</label><textarea id="l-memo" placeholder="例：電車遅延、体調不良"></textarea></div>
+    <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
+      <div class="checklist">
+        <div class="cl-item gemba"><span class="cl-sys sys-gemba">現場システム</span>実際の出退勤時刻で修正入力する</div>
+        <div class="cl-item gemba"><span class="cl-sys sys-gemba">現場Excel</span>実際の出退勤時刻を記入する</div>
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">HRMOS</span>実際の出退勤時刻・勤務区分を入力する</div>
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">自社システム</span>実働時間を正しく入力する</div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addEntry('late')">登録する</button>
+  </div>
+
+  <div class="entry-form" id="form-bukai">
+    <div class="form-title">👥 部会の登録</div>
+    <div class="field"><label>日付</label><input type="date" id="b-date"></div>
+    <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
+      <div class="checklist">
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">HRMOS</span>19:00〜21:00の時間を残業として登録する</div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addEntry('bukai')">登録する</button>
+  </div>
+</div>
+
+<!-- 一覧 -->
+<div id="list" class="section">
+  <div class="month-filter">
+    <button onclick="changeFilter(-1)">&#8249;</button>
+    <span class="mlabel" id="filter-label">－</span>
+    <button onclick="changeFilter(1)">&#8250;</button>
+  </div>
+  <div id="entry-list"></div>
+  <div class="bottom-btns">
+    <button class="bottom-btn" onclick="exportMonth()">📤 今月分をコピー</button>
+    <button class="bottom-btn" onclick="toggleImport()">📥 メモから読み込む</button>
+  </div>
+  <div class="import-area" id="import-area">
+    <div class="note">保存済みテキストを貼り付けてください（対象者：<span id="import-person-label">自分</span>）</div>
+    <textarea id="import-text" placeholder="【在宅切り替え】5月8日（木） 休憩60分"></textarea>
+    <button class="btn-import" onclick="importData()">読み込む</button>
+  </div>
+</div>
+
+<!-- コピーモーダル -->
+<div class="modal-overlay" id="copy-modal" onclick="closeModalOutside(event)">
+  <div class="modal-box">
+    <h3 id="modal-title">📋 メモアプリに保存してください</h3>
+    <div class="modal-note">以下をコピーしてiPhoneのメモアプリに貼り付けて保存してください。次回「メモから読み込む」で復元できます。</div>
+    <textarea id="copy-modal-text" readonly></textarea>
+    <div class="modal-actions">
+      <button class="modal-copy-btn" id="copy-modal-btn" onclick="copyModalText()">コピーする</button>
+      <button class="modal-close-btn" onclick="closeCopyModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- データ ----
+var allEntries = { self: [], h: [], k: [] };
+var currentPerson = 'self';
+var selectedType = null;
+var filterYear  = new Date().getFullYear();
+var filterMonth = new Date().getMonth();
+
+var MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+var DOW    = ['日','月','火','水','木','金','土'];
+
+var PERSON_META = {
+  self: { name: '自分',  dot: 'dot-self', btn: 'active-self' },
+  h:    { name: 'Hさん', dot: 'dot-h',    btn: 'active-h'    },
+  k:    { name: 'Kさん', dot: 'dot-k',    btn: 'active-k'    },
+};
+
+// タイプ定義：ラベル・スタイル・フォーム操作・月末タスクを一元管理
+// 新しいタイプを追加する場合はこのオブジェクトにエントリを追加し、HTMLにフォームとタイプカードを追加する
+var TYPE_META = {
+  remote: {
+    label: '在宅切り替え', icon: '🏠', badge: 'eb-remote',
+    dateId: 'r-date',
+    tasks: [
+      { sys: 'gemba', text: '現場システム：休憩時間を在宅切り替え時の時間にする' },
+      { sys: 'gemba', text: '現場Excel：休憩時間を在宅切り替え時の時間にする' },
+      { sys: 'jisha', text: 'HRMOS：休憩時間を在宅切り替え時の時間にする' },
+    ],
+    getDetail: function() {
+      var rest = document.getElementById('r-rest').value;
+      var memo = document.getElementById('r-memo').value;
+      return (rest ? '休憩'+rest+'分' : '') + (memo ? '　'+memo : '');
+    },
+    clearFields: function() {
+      document.getElementById('r-rest').value = '';
+      document.getElementById('r-memo').value = '';
+    },
+  },
+  training: {
+    label: '研修・イベント', icon: '📚', badge: 'eb-training',
+    dateId: 't-date',
+    tasks: [
+      { sys: 'jisha', text: 'HRMOS：勤務時間に研修時間を加算して入力する' },
+    ],
+    getDetail: function() {
+      var name  = document.getElementById('t-name').value;
+      var start = document.getElementById('t-start').value;
+      var end   = document.getElementById('t-end').value;
+      var memo  = document.getElementById('t-memo').value;
+      return (name||'') + (start&&end ? '　'+start+'〜'+end : '') + (memo ? '　'+memo : '');
+    },
+    clearFields: function() {
+      document.getElementById('t-name').value = '';
+      document.getElementById('t-memo').value = '';
+    },
+  },
+  holiday: {
+    label: '休暇取得', icon: '🌴', badge: 'eb-holiday',
+    dateId: 'h-date',
+    tasks: [
+      { sys: 'gemba', text: '現場Excel：当日の欄に休暇種別を記入する' },
+      { sys: 'jisha', text: 'HRMOS：休暇申請・勤務区分を正しく入力する' },
+    ],
+    getDetail: function() {
+      var htype = document.getElementById('h-type').value;
+      var memo  = document.getElementById('h-memo').value;
+      return htype + (memo ? '　'+memo : '');
+    },
+    clearFields: function() {
+      document.getElementById('h-memo').value = '';
+    },
+  },
+  late: {
+    label: '遅刻・早退', icon: '⏰', badge: 'eb-late',
+    dateId: 'l-date',
+    tasks: [
+      { sys: 'gemba', text: '現場システム：実際の出退勤時刻で修正入力する' },
+      { sys: 'gemba', text: '現場Excel：実際の出退勤時刻を記入する' },
+      { sys: 'jisha', text: 'HRMOS：実際の出退勤時刻・勤務区分を入力する' },
+      { sys: 'jisha', text: '自社システム：実働時間を正しく入力する' },
+    ],
+    getDetail: function() {
+      var ltype = document.getElementById('l-type').value;
+      var start = document.getElementById('l-start').value;
+      var end   = document.getElementById('l-end').value;
+      var memo  = document.getElementById('l-memo').value;
+      return ltype + (start&&end ? '　'+start+'〜'+end : '') + (memo ? '　'+memo : '');
+    },
+    clearFields: function() {
+      document.getElementById('l-start').value = '';
+      document.getElementById('l-end').value   = '';
+      document.getElementById('l-memo').value  = '';
+    },
+  },
+  bukai: {
+    label: '部会', icon: '👥', badge: 'eb-bukai',
+    dateId: 'b-date',
+    tasks: [
+      { sys: 'jisha', text: 'HRMOS：19:00〜21:00の時間を残業として登録する' },
+    ],
+    getDetail: function() { return '19:00〜21:00'; },
+    clearFields: function() {},
+  },
+};
+
+// ---- 人切り替え ----
+function selectPerson(person) {
+  currentPerson = person;
+  var meta = PERSON_META[person];
+  ['self','h','k'].forEach(function(p) {
+    document.getElementById('pb-'+p).className = 'person-btn' + (p===person ? ' '+PERSON_META[p].btn : '');
+  });
+  document.getElementById('p-dot').className = 'person-dot '+meta.dot;
+  document.getElementById('p-name').textContent = meta.name;
+  document.getElementById('import-person-label').textContent = meta.name;
+  resetForm();
+  renderList();
+}
+
+// ---- タブ ----
+function showTab(id) {
+  document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('visible'); });
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById(id).classList.add('visible');
+  document.querySelectorAll('.tab').forEach(function(t){
+    if (t.getAttribute('onclick') && t.getAttribute('onclick').indexOf("'"+id+"'") !== -1) t.classList.add('active');
+  });
+  if (id === 'list') renderList();
+}
+
+// ---- フォーム ----
+function resetForm() {
+  ['remote','training','holiday','late','bukai'].forEach(function(t){
+    document.getElementById('tc-'+t).className = 'type-card';
+    document.getElementById('form-'+t).classList.remove('open');
+  });
+  selectedType = null;
+}
+
+function selectType(type) {
+  if (selectedType === type) { resetForm(); return; }
+  resetForm();
+  selectedType = type;
+  document.getElementById('tc-'+type).className = 'type-card sel-'+type;
+  document.getElementById('form-'+type).classList.add('open');
+  document.getElementById(TYPE_META[type].dateId).value = new Date().toISOString().slice(0,10);
+  setTimeout(function(){ document.getElementById('form-'+type).scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 50);
+}
+
+function addEntry(type) {
+  var meta = TYPE_META[type];
+  var dateVal = document.getElementById(meta.dateId).value;
+  if (!dateVal) { alert('日付を入力してください'); return; }
+  var detail = meta.getDetail().trim();
+  meta.clearFields();
+  var taskDone = meta.tasks.map(function() { return false; });
+  var entry = { id: Date.now(), type: type, date: dateVal, detail: detail, tasks: taskDone };
+  allEntries[currentPerson].unshift(entry);
+  resetForm();
+  showCopyModal(entryToText(entry));
+}
+
+// ---- テキスト変換 ----
+function formatDate(dateStr) {
+  var d = new Date(dateStr+'T00:00:00');
+  return (d.getMonth()+1)+'月'+d.getDate()+'日（'+DOW[d.getDay()]+'）';
+}
+
+function entryToText(entry) {
+  var meta = TYPE_META[entry.type] || {};
+  var line = '【'+meta.label+'】'+formatDate(entry.date);
+  if (entry.detail) line += ' '+entry.detail;
+  return line;
+}
+
+function exportMonth() {
+  var prefix = filterYear+'-'+(filterMonth+1 < 10 ? '0' : '')+(filterMonth+1);
+  var filtered = allEntries[currentPerson].filter(function(e){ return e.date.indexOf(prefix) === 0; });
+  if (!filtered.length) { alert('この月の記録がありません'); return; }
+  filtered.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  var personName = PERSON_META[currentPerson].name;
+  var text = '＝'+personName+'　'+filterYear+'年'+MONTHS[filterMonth]+'＝\n'
+    + filtered.map(function(e){ return entryToText(e); }).join('\n');
+  showCopyModal(text);
+}
+
+// ---- コピーモーダル ----
+function showCopyModal(text) {
+  document.getElementById('copy-modal-text').value = text;
+  document.getElementById('copy-modal-btn').textContent = 'コピーする';
+  document.getElementById('copy-modal').classList.add('open');
+  setTimeout(function(){
+    var el = document.getElementById('copy-modal-text');
+    el.select();
+    try { document.execCommand('copy'); document.getElementById('copy-modal-btn').textContent = 'コピーしました ✓'; } catch(e) {}
+  }, 100);
+}
+
+function closeCopyModal() {
+  document.getElementById('copy-modal').classList.remove('open');
+  showTab('list');
+}
+
+function closeModalOutside(e) {
+  if (e.target.id === 'copy-modal') closeCopyModal();
+}
+
+function copyModalText() {
+  var el = document.getElementById('copy-modal-text');
+  el.select();
+  try {
+    document.execCommand('copy');
+    var btn = document.getElementById('copy-modal-btn');
+    btn.textContent = 'コピーしました ✓';
+    setTimeout(function(){ btn.textContent = 'コピーする'; }, 2000);
+  } catch(e) {}
+}
+
+// ---- インポート ----
+function toggleImport() {
+  var area = document.getElementById('import-area');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+
+function importData() {
+  var text = document.getElementById('import-text').value.trim();
+  if (!text) { alert('テキストを貼り付けてください'); return; }
+  var imported = 0;
+  text.split('\n').forEach(function(line) {
+    line = line.trim();
+    if (!line || line.indexOf('＝') === 0) return;
+    var m = line.match(/^【(.+?)】(\d+)月(\d+)日（.）\s*(.*)/);
+    if (!m) return;
+    var label = m[1], mon = m[2], day = m[3], rest = m[4];
+    var type = null;
+    Object.keys(TYPE_META).forEach(function(k){ if (TYPE_META[k].label === label) type = k; });
+    if (!type) return;
+    var dateStr = filterYear+'-'+(mon.length===1?'0':'')+mon+'-'+(day.length===1?'0':'')+day;
+    var dup = allEntries[currentPerson].some(function(e){ return e.date===dateStr && e.type===type; });
+    if (dup) return;
+    var taskDone = TYPE_META[type].tasks.map(function() { return false; });
+    allEntries[currentPerson].push({ id: Date.now()+imported, type: type, date: dateStr, detail: rest.trim(), tasks: taskDone });
+    imported++;
+  });
+  document.getElementById('import-text').value = '';
+  document.getElementById('import-area').style.display = 'none';
+  if (imported) { renderList(); alert(imported+'件を読み込みました'); }
+  else alert('読み込める新しいデータがありませんでした');
+}
+
+// ---- 一覧 ----
+function changeFilter(d) {
+  filterMonth += d;
+  if (filterMonth > 11) { filterMonth = 0; filterYear++; }
+  if (filterMonth < 0)  { filterMonth = 11; filterYear--; }
+  renderList();
+}
+
+function renderTaskList(entry) {
+  var tasks = (TYPE_META[entry.type] || {}).tasks || [];
+  return tasks.map(function(task, i) {
+    var done = entry.tasks[i];
+    var sc = task.sys==='gemba' ? 'sys-gemba' : 'sys-jisha';
+    var sl = task.sys==='gemba' ? '現場' : '自社';
+    var tt = task.text.replace(/^[^：]+：/,'');
+    return '<div class="task-item'+(done?' done':'')+'" onclick="toggleTask(\''+currentPerson+'\','+entry.id+','+i+')">'
+      +'<input type="checkbox"'+(done?' checked':'')+' onclick="event.stopPropagation();toggleTask(\''+currentPerson+'\','+entry.id+','+i+')">'
+      +'<label><span class="cl-sys '+sc+'">'+sl+'</span>'+tt+'</label></div>';
+  }).join('');
+}
+
+function renderEntryCard(entry) {
+  var meta      = TYPE_META[entry.type] || {};
+  var tasks     = meta.tasks || [];
+  var allDone   = entry.tasks.every(function(v){ return v; });
+  var doneCount = entry.tasks.filter(function(v){ return v; }).length;
+  var progHTML  = allDone
+    ? '<span class="done-badge">✓ 対応済</span>'
+    : '<span class="progress-text">'+doneCount+'/'+tasks.length+'</span>';
+  var card = document.createElement('div');
+  card.className = 'entry-card';
+  card.innerHTML =
+    '<div class="entry-head" onclick="toggleCard('+entry.id+')">'
+    +'<span class="entry-badge '+meta.badge+'">'+meta.icon+' '+meta.label+'</span>'
+    +'<div><div class="entry-date">'+formatDate(entry.date)+'</div>'+(entry.detail?'<div class="entry-preview">'+entry.detail+'</div>':'')+'</div>'
+    +'<div class="entry-right">'+progHTML+'<span class="entry-chevron" id="chev-'+entry.id+'">▼</span></div>'
+    +'</div>'
+    +'<div class="entry-body" id="eb-'+entry.id+'">'
+    +(entry.detail?'<div class="entry-detail">'+entry.detail+'</div>':'')
+    +'<div class="entry-tasks">'+renderTaskList(entry)+'</div>'
+    +'<div class="entry-footer"><button class="btn-delete" onclick="deleteEntry(\''+currentPerson+'\','+entry.id+')">この記録を削除</button></div>'
+    +'</div>';
+  return card;
+}
+
+function renderList() {
+  var el = document.getElementById('filter-label');
+  if (el) el.textContent = filterYear+'年 '+MONTHS[filterMonth];
+  var prefix = filterYear+'-'+(filterMonth+1 < 10 ? '0' : '')+(filterMonth+1);
+  var filtered = allEntries[currentPerson].filter(function(e){ return e.date.indexOf(prefix) === 0; });
+  filtered.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  var container = document.getElementById('entry-list');
+  if (!filtered.length) {
+    container.innerHTML = '<div class="empty-state">'+PERSON_META[currentPerson].name+'のイレギュラーはありません。</div>';
+    return;
+  }
+  container.innerHTML = '';
+  filtered.forEach(function(entry) {
+    container.appendChild(renderEntryCard(entry));
+  });
+}
+
+function toggleCard(id) {
+  var body = document.getElementById('eb-'+id);
+  var chev = document.getElementById('chev-'+id);
+  if (!body||!chev) return;
+  var open = body.classList.toggle('open');
+  chev.classList.toggle('open', open);
+}
+
+function toggleTask(person, entryId, taskIdx) {
+  var entry = null;
+  for (var i = 0; i < allEntries[person].length; i++) {
+    if (allEntries[person][i].id===entryId){ entry=allEntries[person][i]; break; }
+  }
+  if (!entry) return;
+  entry.tasks[taskIdx] = !entry.tasks[taskIdx];
+  renderList();
+  var body = document.getElementById('eb-'+entryId);
+  var chev = document.getElementById('chev-'+entryId);
+  if (body) { body.classList.add('open'); chev.classList.add('open'); }
+}
+
+function deleteEntry(person, id) {
+  if (!confirm('この記録を削除しますか？')) return;
+  allEntries[person] = allEntries[person].filter(function(e){ return e.id!==id; });
+  renderList();
+}
+
+renderList();
+</script>
+</body>
+</html>
