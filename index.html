@@ -674,6 +674,10 @@ function selectType(type) {
   document.getElementById('tc-'+type).className = 'type-card sel-'+type;
   document.getElementById('form-'+type).classList.add('open');
   document.getElementById(TYPE_META[type].dateId).value = new Date().toISOString().slice(0,10);
+  if (type === 'remote') {
+    var def = overtimeDefaults[currentPerson];
+    document.getElementById('r-rest').value = def > 0 ? def : '';
+  }
   setTimeout(function(){ document.getElementById('form-'+type).scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 50);
 }
 
