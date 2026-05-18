@@ -798,6 +798,8 @@ function calcMonthHours(person, year, month) {
     } else if (e.type === 'bukai') {
       adj += 2;
       breakdown.push({ date: e.date, label: '部会（19:00〜21:00）', delta: 2, kind: 'entry' });
+    } else if (e.type === 'juhachi') {
+      breakdown.push({ date: e.date, label: '18時番（9:00〜18:00）', delta: 0, kind: 'entry' });
     } else if (e.type === 'late') {
       var ltype = e.detail.split('　')[0];
       var hours = parseTimeRange(e.detail);
@@ -847,7 +849,7 @@ function renderHoursSummary() {
         deltaStr = '計算対象外';
         deltaClass = ' hours-bna';
       } else {
-        deltaStr = (item.delta >= 0 ? '+' : '') + item.delta.toFixed(1) + 'h';
+        deltaStr = item.delta === 0 ? '±0h' : (item.delta > 0 ? '+' : '') + item.delta.toFixed(1) + 'h';
         if (item.kind === 'base') rowClass = ' hours-brow-base';
       }
       breakdownHtml += '<div class="hours-brow' + rowClass + '">'
