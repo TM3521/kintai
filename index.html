@@ -146,8 +146,7 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .schedule-subtitle { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .03em; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); margin-bottom: 10px; }
 .ot-default-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .ot-default-row:last-child { margin-bottom: 0; }
-.ot-default-row input[type=time] { flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border-md); border-radius: var(--radius-xs); padding: 5px 7px; font-size: 13px; font-family: inherit; color: var(--text); -webkit-appearance: none; appearance: none; }
-.ot-sep { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+.ot-default-row select { flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border-md); border-radius: var(--radius-xs); padding: 5px 7px; font-size: 13px; font-family: inherit; color: var(--text); -webkit-appearance: none; appearance: none; }
 .overtime-check-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .overtime-check-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--text); flex-shrink: 0; cursor: pointer; }
 .overtime-check-row span { font-size: 14px; color: var(--text); cursor: pointer; }
@@ -435,11 +434,8 @@ var TYPE_META = {
 // ---- 在宅切り替え時の基本残業時間 ----
 var OT_DEFAULT_KEY = 'kintai_ot_defaults';
 
-var overtimeDefaults = {
-  self: { start: '', end: '' },
-  h:    { start: '', end: '' },
-  k:    { start: '', end: '' },
-};
+var OT_OPTIONS = [0, 15, 30, 45, 60];
+var overtimeDefaults = { self: 0, h: 0, k: 0 };
 
 function loadOtDefaults() {
   try {
@@ -447,7 +443,8 @@ function loadOtDefaults() {
     if (raw) {
       var parsed = JSON.parse(raw);
       ['self','h','k'].forEach(function(p) {
-        if (parsed[p]) overtimeDefaults[p] = parsed[p];
+        var val = Number(parsed[p]);
+        if (OT_OPTIONS.indexOf(val) !== -1) overtimeDefaults[p] = val;
       });
     }
   } catch(e) {}
@@ -470,26 +467,18 @@ function renderOtDefaults() {
     nameEl.textContent = PERSON_META[p].name;
     row.appendChild(nameEl);
 
-    var startInput = document.createElement('input');
-    startInput.type = 'time';
-    startInput.value = overtimeDefaults[p].start;
-    startInput.onchange = (function(pp) {
-      return function() { overtimeDefaults[pp].start = this.value; saveOtDefaults(); };
+    var select = document.createElement('select');
+    OT_OPTIONS.forEach(function(min) {
+      var opt = document.createElement('option');
+      opt.value = min;
+      opt.textContent = min === 0 ? '無し' : min + '分';
+      if (overtimeDefaults[p] === min) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.onchange = (function(pp) {
+      return function() { overtimeDefaults[pp] = Number(this.value); saveOtDefaults(); };
     })(p);
-    row.appendChild(startInput);
-
-    var sep = document.createElement('span');
-    sep.className = 'ot-sep';
-    sep.textContent = '〜';
-    row.appendChild(sep);
-
-    var endInput = document.createElement('input');
-    endInput.type = 'time';
-    endInput.value = overtimeDefaults[p].end;
-    endInput.onchange = (function(pp) {
-      return function() { overtimeDefaults[pp].end = this.value; saveOtDefaults(); };
-    })(p);
-    row.appendChild(endInput);
+    row.appendChild(select);
 
     container.appendChild(row);
   });
