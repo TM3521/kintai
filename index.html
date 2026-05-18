@@ -132,9 +132,17 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .schedule-row:last-child { margin-bottom: 0; }
 .schedule-person { font-size: 12px; font-weight: 700; width: 38px; flex-shrink: 0; }
 .day-btn { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--border-md); font-size: 11px; font-weight: 700; cursor: pointer; background: var(--surface2); color: var(--text-muted); font-family: inherit; transition: all .15s; }
-.day-btn.on-self { background: #1a1917; border-color: #1a1917; color: #fff; }
-.day-btn.on-h    { background: #1a56db; border-color: #1a56db; color: #fff; }
-.day-btn.on-k    { background: #15803d; border-color: #15803d; color: #fff; }
+.day-btn.office-self { background: #1a1917; border-color: #1a1917; color: #fff; }
+.day-btn.office-h    { background: #1a56db; border-color: #1a56db; color: #fff; }
+.day-btn.office-k    { background: #15803d; border-color: #15803d; color: #fff; }
+.day-btn.remote-self { background: var(--surface); border: 2px solid #1a1917; color: #1a1917; }
+.day-btn.remote-h    { background: var(--surface); border: 2px solid #1a56db; color: #1a56db; }
+.day-btn.remote-k    { background: var(--surface); border: 2px solid #15803d; color: #15803d; }
+.schedule-legend { display: flex; gap: 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-dot.filled  { background: var(--text-muted); }
+.legend-dot.outlined { background: transparent; border: 2px solid var(--text-muted); }
 </style>
 </head>
 <body>
@@ -165,8 +173,12 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 <!-- 新規登録 -->
 <div id="new" class="section visible">
   <div class="schedule-card">
-    <div class="schedule-title">出社スケジュール（タップで切り替え）</div>
+    <div class="schedule-title">出社スケジュール</div>
     <div id="schedule-rows"></div>
+    <div class="schedule-legend">
+      <span class="legend-item"><span class="legend-dot filled"></span>1日勤務</span>
+      <span class="legend-item"><span class="legend-dot outlined"></span>在宅切り替え</span>
+    </div>
   </div>
   <div class="type-grid">
     <div class="type-card" id="tc-remote"   onclick="selectType('remote')">  <span class="type-icon">🏠</span><span class="type-name">在宅切り替え</span>  <span class="type-desc">曜日がいつもと違う日</span></div>
@@ -392,13 +404,13 @@ var TYPE_META = {
 
 // ---- 出社スケジュール ----
 var SCHEDULE_KEY = 'kintai_schedule';
-var SCHEDULE_DAYS = [1, 2, 3, 4, 5, 6]; // DOW index: 月〜土
+var SCHEDULE_DAYS = [1, 2, 3, 4, 5]; // DOW index: 月〜金
 
 function defaultSchedule() {
   return {
-    self: [false,false,false,false,false,false,false],
-    h:    [false,false,false,false,false,false,false],
-    k:    [false,false,false,false,false,false,false],
+    self: [0,0,0,0,0,0,0],
+    h:    [0,0,0,0,0,0,0],
+    k:    [0,0,0,0,0,0,0],
   };
 }
 
@@ -410,7 +422,13 @@ function loadSchedule() {
     if (raw) {
       var parsed = JSON.parse(raw);
       ['self','h','k'].forEach(function(p) {
-        if (parsed[p] && parsed[p].length === 7) officeSchedule[p] = parsed[p];
+        if (parsed[p] && parsed[p].length === 7) {
+          officeSchedule[p] = parsed[p].map(function(v) {
+            if (v === true)  return 1;
+            if (v === false) return 0;
+            return v || 0;
+          });
+        }
       });
     }
   } catch(e) {}
@@ -421,7 +439,7 @@ function saveSchedule() {
 }
 
 function toggleScheduleDay(person, dayIdx) {
-  officeSchedule[person][dayIdx] = !officeSchedule[person][dayIdx];
+  officeSchedule[person][dayIdx] = (officeSchedule[person][dayIdx] + 1) % 3;
   saveSchedule();
   renderSchedule();
 }
@@ -438,9 +456,10 @@ function renderSchedule() {
     nameEl.textContent = PERSON_META[p].name;
     row.appendChild(nameEl);
     SCHEDULE_DAYS.forEach(function(di) {
-      var isOn = officeSchedule[p][di];
+      var val = officeSchedule[p][di];
       var btn = document.createElement('button');
-      btn.className = 'day-btn' + (isOn ? ' on-'+p : '');
+      var stateClass = val === 1 ? ' office-'+p : val === 2 ? ' remote-'+p : '';
+      btn.className = 'day-btn' + stateClass;
       btn.textContent = DOW[di];
       btn.onclick = (function(pp, d) {
         return function(e) { e.stopPropagation(); toggleScheduleDay(pp, d); };
