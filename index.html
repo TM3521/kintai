@@ -461,7 +461,7 @@ function selectPerson(person) {
   document.getElementById('p-dot').className = 'person-dot '+meta.dot;
   document.getElementById('p-name').textContent = meta.name;
   resetForm();
-  if (person === 'all') { showTab('list'); } else { renderList(); }
+  if (person === 'all') { showTab('list'); } else { showTab('new'); }
 }
 
 // ---- タブ ----
