@@ -485,8 +485,7 @@ function renderOtDefaults() {
 }
 
 function updateLateTimeLabel() {
-  var type = document.getElementById('l-type').value;
-  document.getElementById('l-time-label').textContent = type === '残業' ? '残業時間' : '実際の出退勤時刻';
+  document.getElementById('l-time-label').textContent = '実際の出退勤時刻';
 }
 
 // ---- 出社スケジュール ----
@@ -757,7 +756,7 @@ function calcMonthHours(person, year, month) {
       var ltype = e.detail.split('　')[0];
       var hours = parseTimeRange(e.detail);
       if (hours !== null) {
-        var delta = ltype === '残業' ? hours : (hours - 1) - 8;
+        var delta = (hours - 1) - 8; // 実働（時間差−1h休憩）と標準8hの差（全種別共通）
         adj += delta;
         breakdown.push({ date: e.date, label: e.detail, delta: delta, kind: 'entry' });
       } else {
