@@ -302,6 +302,12 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
     <div class="form-title">🕕 18時番の登録</div>
     <div class="field"><label>日付</label><input type="date" id="j-date"></div>
     <div class="field"><label>メモ（任意）</label><textarea id="j-memo" placeholder="例：〇〇さんの代理"></textarea></div>
+    <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
+      <div class="checklist">
+        <div class="cl-item gemba"><span class="cl-sys sys-gemba">現場Excel</span>実際の勤務時間で入力する</div>
+        <div class="cl-item jisha"><span class="cl-sys sys-jisha">HRMOS</span>実際の勤務時間で入力する</div>
+      </div>
+    </div>
     <button class="btn-add" onclick="addEntry('juhachi')">登録する</button>
   </div>
 </div>
@@ -443,7 +449,10 @@ var TYPE_META = {
   juhachi: {
     label: '18時番', icon: '🕕', badge: 'eb-juhachi',
     dateId: 'j-date',
-    tasks: [],
+    tasks: [
+      { sys: 'gemba', text: '現場Excel：実際の勤務時間で入力する' },
+      { sys: 'jisha', text: 'HRMOS：実際の勤務時間で入力する' },
+    ],
     getDetail: function() {
       var memo = document.getElementById('j-memo').value;
       return '9:00〜18:00' + (memo ? '　' + memo : '');
