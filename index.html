@@ -143,6 +143,11 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .legend-dot.filled  { background: var(--text-muted); }
 .legend-dot.outlined { background: transparent; border: 2px solid var(--text-muted); }
+.schedule-subtitle { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .03em; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); margin-bottom: 10px; }
+.ot-default-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ot-default-row:last-child { margin-bottom: 0; }
+.ot-default-row input[type=time] { flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border-md); border-radius: var(--radius-xs); padding: 5px 7px; font-size: 13px; font-family: inherit; color: var(--text); -webkit-appearance: none; appearance: none; }
+.ot-sep { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
 .overtime-check-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .overtime-check-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--text); flex-shrink: 0; cursor: pointer; }
 .overtime-check-row span { font-size: 14px; color: var(--text); cursor: pointer; }
@@ -184,6 +189,8 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
       <span class="legend-item"><span class="legend-dot filled"></span>1日勤務</span>
       <span class="legend-item"><span class="legend-dot outlined"></span>在宅切り替え</span>
     </div>
+    <div class="schedule-subtitle">在宅切り替え時の基本残業時間</div>
+    <div id="ot-default-rows"></div>
   </div>
   <div class="type-grid">
     <div class="type-card" id="tc-remote"   onclick="selectType('remote')">  <span class="type-icon">🏠</span><span class="type-name">在宅切り替え</span>  <span class="type-desc">曜日がいつもと違う日</span></div>
@@ -424,6 +431,69 @@ var TYPE_META = {
     clearFields: function() {},
   },
 };
+
+// ---- 在宅切り替え時の基本残業時間 ----
+var OT_DEFAULT_KEY = 'kintai_ot_defaults';
+
+var overtimeDefaults = {
+  self: { start: '', end: '' },
+  h:    { start: '', end: '' },
+  k:    { start: '', end: '' },
+};
+
+function loadOtDefaults() {
+  try {
+    var raw = localStorage.getItem(OT_DEFAULT_KEY);
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      ['self','h','k'].forEach(function(p) {
+        if (parsed[p]) overtimeDefaults[p] = parsed[p];
+      });
+    }
+  } catch(e) {}
+}
+
+function saveOtDefaults() {
+  try { localStorage.setItem(OT_DEFAULT_KEY, JSON.stringify(overtimeDefaults)); } catch(e) {}
+}
+
+function renderOtDefaults() {
+  var container = document.getElementById('ot-default-rows');
+  if (!container) return;
+  container.innerHTML = '';
+  ['self','h','k'].forEach(function(p) {
+    var row = document.createElement('div');
+    row.className = 'ot-default-row';
+
+    var nameEl = document.createElement('span');
+    nameEl.className = 'schedule-person';
+    nameEl.textContent = PERSON_META[p].name;
+    row.appendChild(nameEl);
+
+    var startInput = document.createElement('input');
+    startInput.type = 'time';
+    startInput.value = overtimeDefaults[p].start;
+    startInput.onchange = (function(pp) {
+      return function() { overtimeDefaults[pp].start = this.value; saveOtDefaults(); };
+    })(p);
+    row.appendChild(startInput);
+
+    var sep = document.createElement('span');
+    sep.className = 'ot-sep';
+    sep.textContent = '〜';
+    row.appendChild(sep);
+
+    var endInput = document.createElement('input');
+    endInput.type = 'time';
+    endInput.value = overtimeDefaults[p].end;
+    endInput.onchange = (function(pp) {
+      return function() { overtimeDefaults[pp].end = this.value; saveOtDefaults(); };
+    })(p);
+    row.appendChild(endInput);
+
+    container.appendChild(row);
+  });
+}
 
 function toggleOvertimeField() {
   var checked = document.getElementById('l-overtime-check').checked;
@@ -682,6 +752,8 @@ function resetData() {
 
 loadSchedule();
 renderSchedule();
+loadOtDefaults();
+renderOtDefaults();
 renderList();
 </script>
 </body>
