@@ -15,6 +15,7 @@
   --green: #15803d; --green-bg: #f0fdf4; --green-border: rgba(21,128,61,.2);
   --amber: #92400e; --amber-bg: #fffbeb; --amber-border: rgba(146,64,14,.2);
   --purple: #5b21b6; --purple-bg: #f5f3ff; --purple-border: rgba(91,33,182,.2);
+  --orange: #c2410c; --orange-bg: #fff7ed; --orange-border: rgba(194,65,12,.2);
   --radius: 12px; --radius-sm: 8px; --radius-xs: 5px;
 }
 body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 14px 80px; font-size: 14px; max-width: 480px; margin: 0 auto; }
@@ -65,6 +66,7 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .type-card.sel-holiday  { border-color: var(--blue);   background: var(--blue-bg); }
 .type-card.sel-late     { border-color: var(--red);    background: var(--red-bg); }
 .type-card.sel-bukai    { border-color: var(--purple); background: var(--purple-bg); }
+.type-card.sel-juhachi  { border-color: var(--orange); background: var(--orange-bg); }
 .type-icon { font-size: 20px; margin-bottom: 6px; display: block; }
 .type-name { font-size: 13px; font-weight: 700; display: block; }
 .type-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; display: block; }
@@ -105,6 +107,7 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .eb-holiday  { background: var(--blue-bg);   color: var(--blue);   border: 1px solid var(--blue-border); }
 .eb-late     { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
 .eb-bukai    { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.eb-juhachi  { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
 .entry-date { font-size: 14px; font-weight: 700; }
 .entry-preview { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
 .entry-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -212,6 +215,7 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
     <div class="type-card" id="tc-holiday"  onclick="selectType('holiday')"> <span class="type-icon">🌴</span><span class="type-name">休暇取得</span>         <span class="type-desc">有給・特休など</span></div>
     <div class="type-card" id="tc-late"     onclick="selectType('late')">    <span class="type-icon">⏰</span><span class="type-name">遅刻・早退・残業</span>   <span class="type-desc">時刻がいつもと違う</span></div>
     <div class="type-card" id="tc-bukai"    onclick="selectType('bukai')">   <span class="type-icon">👥</span><span class="type-name">部会</span>             <span class="type-desc">19:00〜21:00・残業登録</span></div>
+    <div class="type-card" id="tc-juhachi"  onclick="selectType('juhachi')"> <span class="type-icon">🕕</span><span class="type-name">18時番</span>           <span class="type-desc">9:00〜18:00シフト</span></div>
   </div>
 
   <div class="entry-form" id="form-remote">
@@ -291,6 +295,13 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
       </div>
     </div>
     <button class="btn-add" onclick="addEntry('bukai')">登録する</button>
+  </div>
+
+  <div class="entry-form" id="form-juhachi">
+    <div class="form-title">🕕 18時番の登録</div>
+    <div class="field"><label>日付</label><input type="date" id="j-date"></div>
+    <div class="field"><label>メモ（任意）</label><textarea id="j-memo" placeholder="例：〇〇さんの代理"></textarea></div>
+    <button class="btn-add" onclick="addEntry('juhachi')">登録する</button>
   </div>
 </div>
 
@@ -428,6 +439,18 @@ var TYPE_META = {
     ],
     getDetail: function() { return '19:00〜21:00'; },
     clearFields: function() {},
+  },
+  juhachi: {
+    label: '18時番', icon: '🕕', badge: 'eb-juhachi',
+    dateId: 'j-date',
+    tasks: [],
+    getDetail: function() {
+      var memo = document.getElementById('j-memo').value;
+      return '9:00〜18:00' + (memo ? '　' + memo : '');
+    },
+    clearFields: function() {
+      document.getElementById('j-memo').value = '';
+    },
   },
 };
 
@@ -583,7 +606,7 @@ function showTab(id) {
 
 // ---- フォーム ----
 function resetForm() {
-  ['remote','training','holiday','late','bukai'].forEach(function(t){
+  ['remote','training','holiday','late','bukai','juhachi'].forEach(function(t){
     document.getElementById('tc-'+t).className = 'type-card';
     document.getElementById('form-'+t).classList.remove('open');
   });
