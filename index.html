@@ -122,6 +122,18 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .btn-delete { font-size: 12px; padding: 6px 14px; background: var(--red-bg); border: 1px solid var(--red-border); border-radius: var(--radius-xs); color: var(--red); cursor: pointer; font-family: inherit; font-weight: 600; }
 .done-badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .progress-text { font-size: 11px; color: var(--text-faint); }
+/* 勤務時間予測 */
+.hours-card { border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px; }
+.hours-ok   { background: var(--green-bg);  border: 1px solid var(--green-border); }
+.hours-warn { background: var(--amber-bg);  border: 1px solid var(--amber-border); }
+.hours-over { background: var(--red-bg);    border: 1px solid var(--red-border); }
+.hours-head { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .03em; margin-bottom: 4px; }
+.hours-body { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hours-total { font-size: 18px; font-weight: 700; color: var(--text); }
+.hours-ok   .hours-status { font-size: 12px; font-weight: 700; color: var(--green); }
+.hours-warn .hours-status { font-size: 12px; font-weight: 700; color: var(--amber); }
+.hours-over .hours-status { font-size: 12px; font-weight: 700; color: var(--red); }
+.hours-detail { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.6; }
 .reset-area { margin-top: 24px; text-align: center; }
 .btn-reset { background: none; border: none; font-size: 12px; color: var(--text-faint); cursor: pointer; font-family: inherit; text-decoration: underline; padding: 8px; }
 
@@ -281,6 +293,7 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
     <span class="mlabel" id="filter-label">－</span>
     <button onclick="changeFilter(1)">&#8250;</button>
   </div>
+  <div id="hours-summary"></div>
   <div id="entry-list"></div>
   <div class="reset-area">
     <button class="btn-reset" onclick="resetData()">データをリセット</button>
@@ -600,6 +613,78 @@ function formatDate(dateStr) {
   return (d.getMonth()+1)+'月'+d.getDate()+'日（'+DOW[d.getDay()]+'）';
 }
 
+// ---- 勤務時間予測 ----
+function parseTimeRange(str) {
+  var m = str.match(/(\d{1,2}):(\d{2})〜(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  var startMins = parseInt(m[1]) * 60 + parseInt(m[2]);
+  var endMins   = parseInt(m[3]) * 60 + parseInt(m[4]);
+  if (endMins <= startMins) endMins += 24 * 60;
+  return (endMins - startMins) / 60;
+}
+
+function countWorkdays(year, month) {
+  var count = 0;
+  var d = new Date(year, month, 1);
+  while (d.getMonth() === month) {
+    var dow = d.getDay();
+    if (dow >= 1 && dow <= 5) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+function calcMonthHours(person, year, month) {
+  var workdays = countWorkdays(year, month);
+  var base = workdays * 8;
+  var adj  = 0;
+  var prefix = year + '-' + (month + 1 < 10 ? '0' : '') + (month + 1);
+  allEntries[person].forEach(function(e) {
+    if (e.date.indexOf(prefix) !== 0) return;
+    if (e.type === 'holiday') {
+      adj += e.detail.indexOf('半休') !== -1 ? -4 : -8;
+    } else if (e.type === 'bukai') {
+      adj += 2;
+    } else if (e.type === 'late') {
+      var ltype = e.detail.split('　')[0];
+      var hours = parseTimeRange(e.detail);
+      if (hours !== null) {
+        if (ltype === '残業') {
+          adj += hours;
+        } else {
+          adj += (hours - 1) - 8; // 実働（時間差−1h休憩）と標準8hの差
+        }
+      }
+    }
+  });
+  return { workdays: workdays, base: base, adj: adj, total: base + adj };
+}
+
+function renderHoursSummary() {
+  var container = document.getElementById('hours-summary');
+  if (!container) return;
+  if (currentPerson === 'all') { container.innerHTML = ''; return; }
+  var r = calcMonthHours(currentPerson, filterYear, filterMonth);
+  var total = r.total;
+  var under = total < 140;
+  var over  = total > 180;
+  var cardClass  = under ? 'hours-warn' : over ? 'hours-over' : 'hours-ok';
+  var statusText = under ? '⚠️ 下限（140h）を下回る可能性'
+                 : over  ? '⚠️ 上限（180h）を超える可能性'
+                 :         '✓ 規定内（140〜180h）';
+  var adjText = r.adj === 0 ? 'なし'
+              : (r.adj > 0 ? '+' : '') + r.adj.toFixed(1) + 'h';
+  container.innerHTML =
+    '<div class="hours-card ' + cardClass + '">'
+    + '<div class="hours-head">' + filterYear + '年' + MONTHS[filterMonth] + '　勤務時間予測</div>'
+    + '<div class="hours-body">'
+    + '<span class="hours-total">' + total.toFixed(1) + 'h</span>'
+    + '<span class="hours-status">' + statusText + '</span>'
+    + '</div>'
+    + '<div class="hours-detail">基本 ' + r.base + 'h（' + r.workdays + '日×8h）　調整 ' + adjText + '</div>'
+    + '</div>';
+}
+
 // ---- 一覧 ----
 function changeFilter(d) {
   filterMonth += d;
@@ -650,6 +735,7 @@ function renderEntryCard(entry, personKey) {
 }
 
 function renderList() {
+  renderHoursSummary();
   var el = document.getElementById('filter-label');
   if (el) el.textContent = filterYear+'年 '+MONTHS[filterMonth];
   var prefix = filterYear+'-'+(filterMonth+1 < 10 ? '0' : '')+(filterMonth+1);
