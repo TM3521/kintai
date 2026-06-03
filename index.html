@@ -1075,11 +1075,12 @@ function resetData() {
 // ---- PL業務 ----
 var PL_STORAGE_KEY = 'kintai_pl_tasks';
 var plTaskDone = {};
-var plTaspoOpen = false;
+var plTaspoOpen   = false;
+var plJissekiOpen = false;
 
 var PL_TASKS = [
   { key: 'taspo',    label: 'TASPOチェック', taspo: true },
-  { key: 'jisseki',  label: '実績入力' },
+  { key: 'jisseki',  label: '実績入力', expandable: true },
   { key: 'pj_hyoka', label: 'PJ員評価' },
   { key: 'zangyo',   label: '残業申請' },
   { key: 'unit',     label: 'UNIT登録', quarterly: true },
@@ -1157,13 +1158,32 @@ function toggleTaspoOpen() {
   renderPl();
 }
 
+function toggleJissekiOpen() {
+  plJissekiOpen = !plJissekiOpen;
+  renderPl();
+}
+
+function isJissekiDone(state) {
+  return !!(state.jisseki && typeof state.jisseki === 'object' && state.jisseki.reflected);
+}
+
+function toggleJissekiSub() {
+  var mk = getPlMonthKey();
+  if (!plTaskDone[mk]) plTaskDone[mk] = {};
+  if (!plTaskDone[mk].jisseki || typeof plTaskDone[mk].jisseki !== 'object') plTaskDone[mk].jisseki = {};
+  plTaskDone[mk].jisseki.reflected = !plTaskDone[mk].jisseki.reflected;
+  savePlTasks();
+  renderPl();
+}
+
 function renderPl() {
   var mk = getPlMonthKey();
   var state = plTaskDone[mk] || {};
   var doneCount = 0;
   PL_TASKS.forEach(function(t) {
-    if (t.taspo) { if (isTaspoDone(state)) doneCount++; }
-    else { if (state[t.key]) doneCount++; }
+    if (t.taspo)      { if (isTaspoDone(state))   doneCount++; }
+    else if (t.expandable) { if (isJissekiDone(state)) doneCount++; }
+    else              { if (state[t.key])          doneCount++; }
   });
   var total = PL_TASKS.length;
   var pct = Math.round(doneCount / total * 100);
@@ -1219,6 +1239,23 @@ function renderPl() {
           html += '</div>';
           html += '</div>';
         });
+        html += '</div>';
+      }
+    } else if (t.expandable) {
+      var jDone = isJissekiDone(state);
+      var jData = (state.jisseki && typeof state.jisseki === 'object') ? state.jisseki : {};
+      html += '<div class="pl-task-item' + (jDone ? ' done' : '') + '" onclick="toggleJissekiOpen()" style="cursor:pointer;">';
+      html += '<input type="checkbox"' + (jDone ? ' checked' : '') + ' onclick="event.stopPropagation();" style="pointer-events:none;">';
+      html += '<span class="pl-task-label">' + t.label + '</span>';
+      html += '<span style="font-size:12px;color:var(--text-faint);margin-left:auto;">' + (plJissekiOpen ? '▲' : '▼') + '</span>';
+      html += '</div>';
+      if (plJissekiOpen) {
+        var jChecked = !!jData.reflected;
+        html += '<div class="pl-taspo-sub">';
+        html += '<div class="pl-sub-item' + (jChecked ? ' done' : '') + '" onclick="toggleJissekiSub()" style="padding:10px 0;">';
+        html += '<input type="checkbox"' + (jChecked ? ' checked' : '') + ' onclick="event.stopPropagation();toggleJissekiSub()">';
+        html += '<label>TASPOで入力した内容が反映されているか</label>';
+        html += '</div>';
         html += '</div>';
       }
     } else {
