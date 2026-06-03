@@ -150,6 +150,21 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .reset-area { margin-top: 24px; text-align: center; }
 .btn-reset { background: none; border: none; font-size: 12px; color: var(--text-faint); cursor: pointer; font-family: inherit; text-decoration: underline; padding: 8px; }
 
+/* PL業務 */
+.pl-progress-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pl-progress-label { font-size: 12px; color: var(--text-muted); }
+.pl-progress-label strong { font-size: 16px; color: var(--text); }
+.pl-bar-wrap { height: 6px; background: var(--surface2); border-radius: 4px; margin-bottom: 16px; overflow: hidden; }
+.pl-bar { height: 6px; border-radius: 4px; background: var(--green); transition: width .3s; }
+.pl-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; }
+.pl-task-item { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.pl-task-item:last-child { border-bottom: none; }
+.pl-task-item input[type=checkbox] { flex-shrink: 0; accent-color: var(--text); width: 17px; height: 17px; cursor: pointer; }
+.pl-task-label { flex: 1; font-size: 13px; font-weight: 600; }
+.pl-task-item.done .pl-task-label { text-decoration: line-through; color: var(--text-faint); font-weight: 400; }
+.badge-quarterly { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); flex-shrink: 0; }
+.pl-done-msg { text-align: center; padding: 16px; font-size: 13px; font-weight: 700; color: var(--green); }
+
 /* 出社スケジュール */
 .schedule-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
 .schedule-title { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .03em; margin-bottom: 10px; }
@@ -197,6 +212,7 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 <div class="tab-bar">
   <button class="tab active" onclick="showTab('new')">＋ 新規登録</button>
   <button class="tab" onclick="showTab('list')">登録済み一覧</button>
+  <button class="tab" onclick="showTab('pl')">PL業務</button>
 </div>
 
 <!-- 新規登録 -->
@@ -324,6 +340,16 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
   <div class="reset-area">
     <button class="btn-reset" onclick="resetData()">データをリセット</button>
   </div>
+</div>
+
+<!-- PL業務 -->
+<div id="pl" class="section">
+  <div class="month-filter">
+    <button onclick="changePlFilter(-1)">&#8249;</button>
+    <span class="mlabel" id="pl-filter-label">－</span>
+    <button onclick="changePlFilter(1)">&#8250;</button>
+  </div>
+  <div id="pl-content"></div>
 </div>
 
 <script>
@@ -1047,6 +1073,81 @@ function resetData() {
   renderList();
 }
 
+// ---- PL業務 ----
+var PL_STORAGE_KEY = 'kintai_pl_tasks';
+var plTaskDone = {};
+var plFilterYear  = new Date().getFullYear();
+var plFilterMonth = new Date().getMonth();
+
+var PL_TASKS = [
+  { key: 'taspo',    label: 'TASPOチェック' },
+  { key: 'jisseki',  label: '実績入力' },
+  { key: 'pj_hyoka', label: 'PJ員評価' },
+  { key: 'zangyo',   label: '残業申請' },
+  { key: 'unit',     label: 'UNIT登録', quarterly: true },
+];
+
+function loadPlTasks() {
+  try {
+    var raw = localStorage.getItem(PL_STORAGE_KEY);
+    if (raw) plTaskDone = JSON.parse(raw);
+  } catch(e) {}
+}
+
+function savePlTasks() {
+  try { localStorage.setItem(PL_STORAGE_KEY, JSON.stringify(plTaskDone)); } catch(e) {}
+}
+
+function getPlMonthKey() {
+  return plFilterYear + '-' + (plFilterMonth + 1 < 10 ? '0' : '') + (plFilterMonth + 1);
+}
+
+function changePlFilter(dir) {
+  plFilterMonth += dir;
+  if (plFilterMonth < 0)  { plFilterMonth = 11; plFilterYear--; }
+  if (plFilterMonth > 11) { plFilterMonth = 0;  plFilterYear++; }
+  renderPl();
+}
+
+function togglePlTask(key) {
+  var mk = getPlMonthKey();
+  if (!plTaskDone[mk]) plTaskDone[mk] = {};
+  plTaskDone[mk][key] = !plTaskDone[mk][key];
+  savePlTasks();
+  renderPl();
+}
+
+function renderPl() {
+  document.getElementById('pl-filter-label').textContent = MONTHS[plFilterMonth] + ' ' + plFilterYear;
+  var mk = getPlMonthKey();
+  var state = plTaskDone[mk] || {};
+  var doneCount = 0;
+  PL_TASKS.forEach(function(t) { if (state[t.key]) doneCount++; });
+  var total = PL_TASKS.length;
+  var pct = Math.round(doneCount / total * 100);
+
+  var html = '';
+  html += '<div class="pl-progress-row">';
+  html += '<span class="pl-progress-label"><strong>' + doneCount + '</strong> / ' + total + ' 完了</span>';
+  html += '<span class="pl-progress-label">' + pct + '%</span>';
+  html += '</div>';
+  html += '<div class="pl-bar-wrap"><div class="pl-bar" style="width:' + pct + '%"></div></div>';
+  html += '<div class="pl-card">';
+  PL_TASKS.forEach(function(t) {
+    var done = !!state[t.key];
+    html += '<div class="pl-task-item' + (done ? ' done' : '') + '" onclick="togglePlTask(\'' + t.key + '\')">';
+    html += '<input type="checkbox"' + (done ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlTask(\'' + t.key + '\')">';
+    html += '<span class="pl-task-label">' + t.label + '</span>';
+    if (t.quarterly) html += '<span class="badge-quarterly">3ヶ月に1回</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  if (doneCount === total) {
+    html += '<div class="pl-done-msg">✅ 今月の作業はすべて完了しています</div>';
+  }
+  document.getElementById('pl-content').innerHTML = html;
+}
+
 buildTimeOptions('t-start', '10:00', false);
 buildTimeOptions('t-end',   '12:00', false);
 buildTimeOptions('l-start', '',      true);
@@ -1056,7 +1157,9 @@ renderSchedule();
 loadOtDefaults();
 renderOtDefaults();
 loadFixedTasks();
+loadPlTasks();
 renderList();
+renderPl();
 </script>
 </body>
 </html>
