@@ -164,6 +164,14 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
 .pl-task-item.done .pl-task-label { text-decoration: line-through; color: var(--text-faint); font-weight: 400; }
 .badge-quarterly { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); flex-shrink: 0; }
 .pl-done-msg { text-align: center; padding: 16px; font-size: 13px; font-weight: 700; color: var(--green); }
+.pl-taspo-sub { background: var(--bg); border-top: 1px solid var(--border); padding: 0 14px 4px 14px; }
+.pl-sub-member { padding: 8px 0 4px; }
+.pl-sub-member-name { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .03em; margin-bottom: 4px; }
+.pl-sub-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; cursor: pointer; }
+.pl-sub-item:last-child { border-bottom: none; }
+.pl-sub-item input[type=checkbox] { flex-shrink: 0; accent-color: var(--text); width: 15px; height: 15px; cursor: pointer; }
+.pl-sub-item.done label { text-decoration: line-through; color: var(--text-faint); }
+.pl-sub-progress { font-size: 11px; color: var(--text-faint); margin-left: auto; flex-shrink: 0; }
 
 /* 出社スケジュール */
 .schedule-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
@@ -1078,13 +1086,24 @@ var PL_STORAGE_KEY = 'kintai_pl_tasks';
 var plTaskDone = {};
 var plFilterYear  = new Date().getFullYear();
 var plFilterMonth = new Date().getMonth();
+var plTaspoOpen = false;
 
 var PL_TASKS = [
-  { key: 'taspo',    label: 'TASPOチェック' },
+  { key: 'taspo',    label: 'TASPOチェック', taspo: true },
   { key: 'jisseki',  label: '実績入力' },
   { key: 'pj_hyoka', label: 'PJ員評価' },
   { key: 'zangyo',   label: '残業申請' },
   { key: 'unit',     label: 'UNIT登録', quarterly: true },
+];
+
+var TASPO_MEMBERS = [
+  { key: 'self', label: '自分' },
+  { key: 'h',    label: 'Hさん' },
+  { key: 's',    label: 'Sさん' },
+];
+var TASPO_CHECKS = [
+  { key: 'hours', label: '勤務時間' },
+  { key: 'leave', label: '有給取得日数' },
 ];
 
 function loadPlTasks() {
@@ -1109,6 +1128,27 @@ function changePlFilter(dir) {
   renderPl();
 }
 
+function isTaspoDone(state) {
+  var taspo = (state.taspo && typeof state.taspo === 'object') ? state.taspo : {};
+  for (var mi = 0; mi < TASPO_MEMBERS.length; mi++) {
+    for (var ci = 0; ci < TASPO_CHECKS.length; ci++) {
+      if (!taspo[TASPO_MEMBERS[mi].key + '_' + TASPO_CHECKS[ci].key]) return false;
+    }
+  }
+  return true;
+}
+
+function taspoSubDoneCount(state) {
+  var taspo = (state.taspo && typeof state.taspo === 'object') ? state.taspo : {};
+  var count = 0;
+  for (var mi = 0; mi < TASPO_MEMBERS.length; mi++) {
+    for (var ci = 0; ci < TASPO_CHECKS.length; ci++) {
+      if (taspo[TASPO_MEMBERS[mi].key + '_' + TASPO_CHECKS[ci].key]) count++;
+    }
+  }
+  return count;
+}
+
 function togglePlTask(key) {
   var mk = getPlMonthKey();
   if (!plTaskDone[mk]) plTaskDone[mk] = {};
@@ -1117,12 +1157,29 @@ function togglePlTask(key) {
   renderPl();
 }
 
+function togglePlSubTask(subKey) {
+  var mk = getPlMonthKey();
+  if (!plTaskDone[mk]) plTaskDone[mk] = {};
+  if (!plTaskDone[mk].taspo || typeof plTaskDone[mk].taspo !== 'object') plTaskDone[mk].taspo = {};
+  plTaskDone[mk].taspo[subKey] = !plTaskDone[mk].taspo[subKey];
+  savePlTasks();
+  renderPl();
+}
+
+function toggleTaspoOpen() {
+  plTaspoOpen = !plTaspoOpen;
+  renderPl();
+}
+
 function renderPl() {
   document.getElementById('pl-filter-label').textContent = MONTHS[plFilterMonth] + ' ' + plFilterYear;
   var mk = getPlMonthKey();
   var state = plTaskDone[mk] || {};
   var doneCount = 0;
-  PL_TASKS.forEach(function(t) { if (state[t.key]) doneCount++; });
+  PL_TASKS.forEach(function(t) {
+    if (t.taspo) { if (isTaspoDone(state)) doneCount++; }
+    else { if (state[t.key]) doneCount++; }
+  });
   var total = PL_TASKS.length;
   var pct = Math.round(doneCount / total * 100);
 
@@ -1133,14 +1190,46 @@ function renderPl() {
   html += '</div>';
   html += '<div class="pl-bar-wrap"><div class="pl-bar" style="width:' + pct + '%"></div></div>';
   html += '<div class="pl-card">';
+
   PL_TASKS.forEach(function(t) {
-    var done = !!state[t.key];
-    html += '<div class="pl-task-item' + (done ? ' done' : '') + '" onclick="togglePlTask(\'' + t.key + '\')">';
-    html += '<input type="checkbox"' + (done ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlTask(\'' + t.key + '\')">';
-    html += '<span class="pl-task-label">' + t.label + '</span>';
-    if (t.quarterly) html += '<span class="badge-quarterly">3ヶ月に1回</span>';
-    html += '</div>';
+    if (t.taspo) {
+      var tDone = isTaspoDone(state);
+      var subTotal = TASPO_MEMBERS.length * TASPO_CHECKS.length;
+      var subDone  = taspoSubDoneCount(state);
+      var taspoData = (state.taspo && typeof state.taspo === 'object') ? state.taspo : {};
+      html += '<div class="pl-task-item' + (tDone ? ' done' : '') + '" onclick="toggleTaspoOpen()" style="cursor:pointer;">';
+      html += '<input type="checkbox"' + (tDone ? ' checked' : '') + ' onclick="event.stopPropagation();" style="pointer-events:none;">';
+      html += '<span class="pl-task-label">TASPOチェック</span>';
+      html += '<span class="pl-sub-progress">' + subDone + '/' + subTotal + '</span>';
+      html += '<span style="font-size:12px;color:var(--text-faint);margin-left:4px;">' + (plTaspoOpen ? '▲' : '▼') + '</span>';
+      html += '</div>';
+      if (plTaspoOpen) {
+        html += '<div class="pl-taspo-sub">';
+        TASPO_MEMBERS.forEach(function(m) {
+          html += '<div class="pl-sub-member">';
+          html += '<div class="pl-sub-member-name">' + m.label + '</div>';
+          TASPO_CHECKS.forEach(function(c) {
+            var subKey = m.key + '_' + c.key;
+            var checked = !!taspoData[subKey];
+            html += '<div class="pl-sub-item' + (checked ? ' done' : '') + '" onclick="togglePlSubTask(\'' + subKey + '\')">';
+            html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlSubTask(\'' + subKey + '\')">';
+            html += '<label>' + c.label + '</label>';
+            html += '</div>';
+          });
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+    } else {
+      var done = !!state[t.key];
+      html += '<div class="pl-task-item' + (done ? ' done' : '') + '" onclick="togglePlTask(\'' + t.key + '\')">';
+      html += '<input type="checkbox"' + (done ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlTask(\'' + t.key + '\')">';
+      html += '<span class="pl-task-label">' + t.label + '</span>';
+      if (t.quarterly) html += '<span class="badge-quarterly">3ヶ月に1回</span>';
+      html += '</div>';
+    }
   });
+
   html += '</div>';
   if (doneCount === total) {
     html += '<div class="pl-done-msg">✅ 今月の作業はすべて完了しています</div>';
