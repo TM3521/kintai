@@ -1075,13 +1075,13 @@ function resetData() {
 // ---- PL業務 ----
 var PL_STORAGE_KEY = 'kintai_pl_tasks';
 var plTaskDone = {};
-var plTaspoOpen   = false;
-var plJissekiOpen = false;
+var plTaspoOpen  = false;
+var plExpandOpen = {};
 
 var PL_TASKS = [
   { key: 'taspo',    label: 'TASPOチェック', taspo: true },
-  { key: 'jisseki',  label: '実績入力', expandable: true },
-  { key: 'pj_hyoka', label: 'PJ員評価' },
+  { key: 'jisseki',  label: '実績入力',  perMember: true, subLabel: 'TASPOで入力した内容が反映されているか' },
+  { key: 'pj_hyoka', label: 'PJ員評価', perMember: true, subLabel: '各項目は入力してあるか' },
   { key: 'zangyo',   label: '残業申請' },
   { key: 'unit',     label: 'UNIT登録', quarterly: true },
 ];
@@ -1158,33 +1158,33 @@ function toggleTaspoOpen() {
   renderPl();
 }
 
-function toggleJissekiOpen() {
-  plJissekiOpen = !plJissekiOpen;
+function toggleExpandOpen(key) {
+  plExpandOpen[key] = !plExpandOpen[key];
   renderPl();
 }
 
-function isJissekiDone(state) {
-  var j = (state.jisseki && typeof state.jisseki === 'object') ? state.jisseki : {};
+function isPerMemberDone(state, key) {
+  var data = (state[key] && typeof state[key] === 'object') ? state[key] : {};
   for (var mi = 0; mi < TASPO_MEMBERS.length; mi++) {
-    if (!j[TASPO_MEMBERS[mi].key]) return false;
+    if (!data[TASPO_MEMBERS[mi].key]) return false;
   }
   return true;
 }
 
-function jissekiSubDoneCount(state) {
-  var j = (state.jisseki && typeof state.jisseki === 'object') ? state.jisseki : {};
+function perMemberDoneCount(state, key) {
+  var data = (state[key] && typeof state[key] === 'object') ? state[key] : {};
   var count = 0;
   for (var mi = 0; mi < TASPO_MEMBERS.length; mi++) {
-    if (j[TASPO_MEMBERS[mi].key]) count++;
+    if (data[TASPO_MEMBERS[mi].key]) count++;
   }
   return count;
 }
 
-function toggleJissekiSub(memberKey) {
+function togglePerMemberSub(taskKey, memberKey) {
   var mk = getPlMonthKey();
   if (!plTaskDone[mk]) plTaskDone[mk] = {};
-  if (!plTaskDone[mk].jisseki || typeof plTaskDone[mk].jisseki !== 'object') plTaskDone[mk].jisseki = {};
-  plTaskDone[mk].jisseki[memberKey] = !plTaskDone[mk].jisseki[memberKey];
+  if (!plTaskDone[mk][taskKey] || typeof plTaskDone[mk][taskKey] !== 'object') plTaskDone[mk][taskKey] = {};
+  plTaskDone[mk][taskKey][memberKey] = !plTaskDone[mk][taskKey][memberKey];
   savePlTasks();
   renderPl();
 }
@@ -1194,9 +1194,9 @@ function renderPl() {
   var state = plTaskDone[mk] || {};
   var doneCount = 0;
   PL_TASKS.forEach(function(t) {
-    if (t.taspo)      { if (isTaspoDone(state))   doneCount++; }
-    else if (t.expandable) { if (isJissekiDone(state)) doneCount++; }
-    else              { if (state[t.key])          doneCount++; }
+    if (t.taspo)       { if (isTaspoDone(state))              doneCount++; }
+    else if (t.perMember) { if (isPerMemberDone(state, t.key)) doneCount++; }
+    else               { if (state[t.key])                     doneCount++; }
   });
   var total = PL_TASKS.length;
   var pct = Math.round(doneCount / total * 100);
@@ -1254,29 +1254,30 @@ function renderPl() {
         });
         html += '</div>';
       }
-    } else if (t.expandable) {
-      var jDone   = isJissekiDone(state);
-      var jSubDone  = jissekiSubDoneCount(state);
-      var jSubTotal = TASPO_MEMBERS.length;
-      var jData   = (state.jisseki && typeof state.jisseki === 'object') ? state.jisseki : {};
-      var jMembersToShow = currentPerson === 'all'
+    } else if (t.perMember) {
+      var pmDone     = isPerMemberDone(state, t.key);
+      var pmSubDone  = perMemberDoneCount(state, t.key);
+      var pmSubTotal = TASPO_MEMBERS.length;
+      var pmData     = (state[t.key] && typeof state[t.key] === 'object') ? state[t.key] : {};
+      var pmMembers  = currentPerson === 'all'
         ? TASPO_MEMBERS
         : TASPO_MEMBERS.filter(function(m) { return m.key === PERSON_TO_TASPO[currentPerson]; });
-      html += '<div class="pl-task-item' + (jDone ? ' done' : '') + '" onclick="toggleJissekiOpen()" style="cursor:pointer;">';
-      html += '<input type="checkbox"' + (jDone ? ' checked' : '') + ' onclick="event.stopPropagation();" style="pointer-events:none;">';
+      var pmOpen = !!plExpandOpen[t.key];
+      html += '<div class="pl-task-item' + (pmDone ? ' done' : '') + '" onclick="toggleExpandOpen(\'' + t.key + '\')" style="cursor:pointer;">';
+      html += '<input type="checkbox"' + (pmDone ? ' checked' : '') + ' onclick="event.stopPropagation();" style="pointer-events:none;">';
       html += '<span class="pl-task-label">' + t.label + '</span>';
-      html += '<span class="pl-sub-progress">' + jSubDone + '/' + jSubTotal + '</span>';
-      html += '<span style="font-size:12px;color:var(--text-faint);margin-left:4px;">' + (plJissekiOpen ? '▲' : '▼') + '</span>';
+      html += '<span class="pl-sub-progress">' + pmSubDone + '/' + pmSubTotal + '</span>';
+      html += '<span style="font-size:12px;color:var(--text-faint);margin-left:4px;">' + (pmOpen ? '▲' : '▼') + '</span>';
       html += '</div>';
-      if (plJissekiOpen) {
+      if (pmOpen) {
         html += '<div class="pl-taspo-sub">';
-        jMembersToShow.forEach(function(m) {
-          var checked = !!jData[m.key];
+        pmMembers.forEach(function(m) {
+          var checked = !!pmData[m.key];
           html += '<div class="pl-sub-member">';
           html += '<div class="pl-sub-member-name">' + m.label + '</div>';
-          html += '<div class="pl-sub-item' + (checked ? ' done' : '') + '" onclick="toggleJissekiSub(\'' + m.key + '\')">';
-          html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onclick="event.stopPropagation();toggleJissekiSub(\'' + m.key + '\')">';
-          html += '<label>TASPOで入力した内容が反映されているか</label>';
+          html += '<div class="pl-sub-item' + (checked ? ' done' : '') + '" onclick="togglePerMemberSub(\'' + t.key + '\',\'' + m.key + '\')">';
+          html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onclick="event.stopPropagation();togglePerMemberSub(\'' + t.key + '\',\'' + m.key + '\')">';
+          html += '<label>' + t.subLabel + '</label>';
           html += '</div>';
           html += '</div>';
         });
