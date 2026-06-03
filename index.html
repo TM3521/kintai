@@ -1092,8 +1092,9 @@ var TASPO_MEMBERS = [
 ];
 var PERSON_TO_TASPO = { self: 'self', h: 'h', k: 's' };
 var TASPO_CHECKS = [
-  { key: 'hours', label: '勤務時間' },
-  { key: 'leave', label: '有給取得日数' },
+  { key: 'hours',    label: '勤務時間が1ヶ月分と一致しているか' },
+  { key: 'leave_pt', label: '有給ポイント付与済みか（1日＝8pt）' },
+  { key: 'ot',       label: '許容OT・希望OTを入力済みか' },
 ];
 
 function loadPlTasks() {
