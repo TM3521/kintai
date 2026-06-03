@@ -1083,7 +1083,7 @@ var PL_TASKS = [
   { key: 'jisseki',  label: '実績入力',  perMember: true, subLabel: 'TASPOで入力した内容が反映されているか' },
   { key: 'pj_hyoka', label: 'PJ員評価', perMember: true, subLabel: '各項目は入力してあるか' },
   { key: 'zangyo',   label: '残業申請', zangyoType: true },
-  { key: 'unit',     label: 'UNIT登録', quarterly: true },
+  { key: 'unit',     label: 'UNIT登録', unitType: true },
 ];
 
 var TASPO_MEMBERS = [
@@ -1152,6 +1152,13 @@ function togglePlSubTask(subKey) {
   plTaskDone[mk].taspo[subKey] = !plTaskDone[mk].taspo[subKey];
   savePlTasks();
   renderPl();
+}
+
+// ---- UNIT登録 ----
+var UNIT_MONTHS = [3, 6, 9, 10, 12];
+
+function isUnitRequired(month) {
+  return UNIT_MONTHS.indexOf(month + 1) !== -1;
 }
 
 // ---- 残業申請 ----
@@ -1255,8 +1262,9 @@ function renderPl() {
   PL_TASKS.forEach(function(t) {
     if (t.taspo)          { if (isTaspoDone(state))                          doneCount++; }
     else if (t.perMember) { if (isPerMemberDone(state, t.key))               doneCount++; }
-    else if (t.zangyoType){ if (isZangyoDone(state, filterYear, filterMonth)) doneCount++; }
-    else                  { if (state[t.key])                                 doneCount++; }
+    else if (t.zangyoType){ if (isZangyoDone(state, filterYear, filterMonth))            doneCount++; }
+    else if (t.unitType)  { if (!isUnitRequired(filterMonth) || state[t.key])             doneCount++; }
+    else                  { if (state[t.key])                                              doneCount++; }
   });
   var total = PL_TASKS.length;
   var pct = Math.round(doneCount / total * 100);
@@ -1382,12 +1390,27 @@ function renderPl() {
         });
         html += '</div>';
       }
+    } else if (t.unitType) {
+      var required = isUnitRequired(filterMonth);
+      var uDone    = !required || !!state[t.key];
+      if (!required) {
+        html += '<div class="pl-task-item done" style="opacity:.55;">';
+        html += '<input type="checkbox" checked disabled>';
+        html += '<span class="pl-task-label">UNIT登録</span>';
+        html += '<span class="badge-quarterly">対象月外</span>';
+        html += '</div>';
+      } else {
+        html += '<div class="pl-task-item' + (uDone ? ' done' : '') + '" onclick="togglePlTask(\'unit\')">';
+        html += '<input type="checkbox"' + (uDone ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlTask(\'unit\')">';
+        html += '<span class="pl-task-label">UNIT登録</span>';
+        html += '<span class="badge-quarterly">3・6・9・10・12月</span>';
+        html += '</div>';
+      }
     } else {
       var done = !!state[t.key];
       html += '<div class="pl-task-item' + (done ? ' done' : '') + '" onclick="togglePlTask(\'' + t.key + '\')">';
       html += '<input type="checkbox"' + (done ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlTask(\'' + t.key + '\')">';
       html += '<span class="pl-task-label">' + t.label + '</span>';
-      if (t.quarterly) html += '<span class="badge-quarterly">3ヶ月に1回</span>';
       html += '</div>';
     }
   });
