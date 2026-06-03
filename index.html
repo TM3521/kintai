@@ -1082,7 +1082,7 @@ var PL_TASKS = [
   { key: 'taspo',    label: 'TASPOチェック', taspo: true },
   { key: 'jisseki',  label: '実績入力',  perMember: true, subLabel: 'TASPOで入力した内容が反映されているか' },
   { key: 'pj_hyoka', label: 'PJ員評価', perMember: true, subLabel: '各項目は入力してあるか' },
-  { key: 'zangyo',   label: '残業申請' },
+  { key: 'zangyo',   label: '残業申請', zangyoType: true },
   { key: 'unit',     label: 'UNIT登録', quarterly: true },
 ];
 
@@ -1092,6 +1092,7 @@ var TASPO_MEMBERS = [
   { key: 's',    label: 'Sさん' },
 ];
 var PERSON_TO_TASPO = { self: 'self', h: 'h', k: 's' };
+var TASPO_TO_PERSON = { self: 'self', h: 'h', s: 'k' };
 var TASPO_CHECKS = [
   { key: 'hours',    label: '勤務時間が1ヶ月分と一致しているか' },
   { key: 'leave_pt', label: '有給ポイント付与済みか（1日＝8pt）' },
@@ -1153,6 +1154,58 @@ function togglePlSubTask(subKey) {
   renderPl();
 }
 
+// ---- 残業申請 ----
+var OT_THRESHOLD = 15; // 残業申請必須ライン（時間）
+var plZangyoOpen = false;
+
+function calcMemberOvertime(taspoKey, year, month) {
+  var personKey = TASPO_TO_PERSON[taspoKey];
+  var prefix = year + '-' + (month + 1 < 10 ? '0' : '') + (month + 1);
+  var ot = 0;
+  allEntries[personKey].forEach(function(e) {
+    if (e.date.indexOf(prefix) !== 0) return;
+    if (e.type === 'bukai') {
+      ot += 2;
+    } else if (e.type === 'late') {
+      var ltype = (e.detail || '').split('　')[0];
+      if (ltype === '残業') {
+        var hours = parseTimeRange(e.detail);
+        if (hours !== null) {
+          var delta = (hours - 1) - 8;
+          if (delta > 0) ot += delta;
+        }
+      }
+    }
+  });
+  return ot;
+}
+
+function isZangyoMemberDone(taspoKey, state, year, month) {
+  if (calcMemberOvertime(taspoKey, year, month) < OT_THRESHOLD) return true;
+  var data = (state.zangyo && typeof state.zangyo === 'object') ? state.zangyo : {};
+  return !!data[taspoKey];
+}
+
+function isZangyoDone(state, year, month) {
+  for (var mi = 0; mi < TASPO_MEMBERS.length; mi++) {
+    if (!isZangyoMemberDone(TASPO_MEMBERS[mi].key, state, year, month)) return false;
+  }
+  return true;
+}
+
+function zangyoDoneCount(state, year, month) {
+  var count = 0;
+  for (var mi = 0; mi < TASPO_MEMBERS.length; mi++) {
+    if (isZangyoMemberDone(TASPO_MEMBERS[mi].key, state, year, month)) count++;
+  }
+  return count;
+}
+
+function toggleZangyoOpen() {
+  plZangyoOpen = !plZangyoOpen;
+  renderPl();
+}
+
 function toggleTaspoOpen() {
   plTaspoOpen = !plTaspoOpen;
   renderPl();
@@ -1194,9 +1247,10 @@ function renderPl() {
   var state = plTaskDone[mk] || {};
   var doneCount = 0;
   PL_TASKS.forEach(function(t) {
-    if (t.taspo)       { if (isTaspoDone(state))              doneCount++; }
-    else if (t.perMember) { if (isPerMemberDone(state, t.key)) doneCount++; }
-    else               { if (state[t.key])                     doneCount++; }
+    if (t.taspo)          { if (isTaspoDone(state))                          doneCount++; }
+    else if (t.perMember) { if (isPerMemberDone(state, t.key))               doneCount++; }
+    else if (t.zangyoType){ if (isZangyoDone(state, filterYear, filterMonth)) doneCount++; }
+    else                  { if (state[t.key])                                 doneCount++; }
   });
   var total = PL_TASKS.length;
   var pct = Math.round(doneCount / total * 100);
@@ -1279,6 +1333,45 @@ function renderPl() {
           html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onclick="event.stopPropagation();togglePerMemberSub(\'' + t.key + '\',\'' + m.key + '\')">';
           html += '<label>' + t.subLabel + '</label>';
           html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+    } else if (t.zangyoType) {
+      var zDone     = isZangyoDone(state, filterYear, filterMonth);
+      var zSubDone  = zangyoDoneCount(state, filterYear, filterMonth);
+      var zSubTotal = TASPO_MEMBERS.length;
+      var zData     = (state.zangyo && typeof state.zangyo === 'object') ? state.zangyo : {};
+      var zMembers  = currentPerson === 'all'
+        ? TASPO_MEMBERS
+        : TASPO_MEMBERS.filter(function(m) { return m.key === PERSON_TO_TASPO[currentPerson]; });
+      var zOpen = !!plZangyoOpen;
+      html += '<div class="pl-task-item' + (zDone ? ' done' : '') + '" onclick="toggleZangyoOpen()" style="cursor:pointer;">';
+      html += '<input type="checkbox"' + (zDone ? ' checked' : '') + ' onclick="event.stopPropagation();" style="pointer-events:none;">';
+      html += '<span class="pl-task-label">残業申請</span>';
+      html += '<span class="pl-sub-progress">' + zSubDone + '/' + zSubTotal + '</span>';
+      html += '<span style="font-size:12px;color:var(--text-faint);margin-left:4px;">' + (zOpen ? '▲' : '▼') + '</span>';
+      html += '</div>';
+      if (zOpen) {
+        html += '<div class="pl-taspo-sub">';
+        zMembers.forEach(function(m) {
+          var ot      = calcMemberOvertime(m.key, filterYear, filterMonth);
+          var otLabel = ot + '時間';
+          var auto    = ot < OT_THRESHOLD;
+          var checked = auto || !!zData[m.key];
+          html += '<div class="pl-sub-member">';
+          html += '<div class="pl-sub-member-name">' + m.label + '</div>';
+          if (auto) {
+            html += '<div class="pl-sub-item done" style="opacity:.55;">';
+            html += '<input type="checkbox" checked disabled>';
+            html += '<label>不要（残業 ' + otLabel + '・15時間未満）</label>';
+            html += '</div>';
+          } else {
+            html += '<div class="pl-sub-item' + (checked ? ' done' : '') + '" onclick="togglePerMemberSub(\'zangyo\',\'' + m.key + '\')">';
+            html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onclick="event.stopPropagation();togglePerMemberSub(\'zangyo\',\'' + m.key + '\')">';
+            html += '<label>残業申請済みか（残業 ' + otLabel + '）</label>';
+            html += '</div>';
+          }
           html += '</div>';
         });
         html += '</div>';
