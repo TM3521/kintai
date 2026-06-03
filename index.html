@@ -1119,6 +1119,7 @@ function isTaspoDone(state) {
       if (!taspo[TASPO_MEMBERS[mi].key + '_' + TASPO_CHECKS[ci].key]) return false;
     }
   }
+  if (!taspo['jisseki_kanri']) return false;
   return true;
 }
 
@@ -1130,6 +1131,7 @@ function taspoSubDoneCount(state) {
       if (taspo[TASPO_MEMBERS[mi].key + '_' + TASPO_CHECKS[ci].key]) count++;
     }
   }
+  if (taspo['jisseki_kanri']) count++;
   return count;
 }
 
@@ -1177,7 +1179,7 @@ function renderPl() {
   PL_TASKS.forEach(function(t) {
     if (t.taspo) {
       var tDone = isTaspoDone(state);
-      var subTotal = TASPO_MEMBERS.length * TASPO_CHECKS.length;
+      var subTotal = TASPO_MEMBERS.length * TASPO_CHECKS.length + 1;
       var subDone  = taspoSubDoneCount(state);
       var taspoData = (state.taspo && typeof state.taspo === 'object') ? state.taspo : {};
       html += '<div class="pl-task-item' + (tDone ? ' done' : '') + '" onclick="toggleTaspoOpen()" style="cursor:pointer;">';
@@ -1191,6 +1193,7 @@ function renderPl() {
           ? TASPO_MEMBERS
           : TASPO_MEMBERS.filter(function(m) { return m.key === PERSON_TO_TASPO[currentPerson]; });
         html += '<div class="pl-taspo-sub">';
+        html += '<div class="pl-sub-member-name" style="padding-top:8px;">メンバー別詳細実績確認</div>';
         membersToShow.forEach(function(m) {
           html += '<div class="pl-sub-member">';
           html += '<div class="pl-sub-member-name">' + m.label + '</div>';
@@ -1204,6 +1207,14 @@ function renderPl() {
           });
           html += '</div>';
         });
+        html += '<div class="pl-sub-member" style="border-top:1px solid var(--border-md);margin-top:4px;">';
+        html += '<div class="pl-sub-member-name">実績管理</div>';
+        var jmChecked = !!taspoData['jisseki_kanri'];
+        html += '<div class="pl-sub-item' + (jmChecked ? ' done' : '') + '" onclick="togglePlSubTask(\'jisseki_kanri\')">';
+        html += '<input type="checkbox"' + (jmChecked ? ' checked' : '') + ' onclick="event.stopPropagation();togglePlSubTask(\'jisseki_kanri\')">';
+        html += '<label>過不足時間・過不足単価がある場合、入力済みか</label>';
+        html += '</div>';
+        html += '</div>';
         html += '</div>';
       }
     } else {
