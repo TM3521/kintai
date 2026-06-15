@@ -685,7 +685,8 @@ function selectPerson(person) {
   document.getElementById('p-dot').className = 'person-dot '+meta.dot;
   document.getElementById('p-name').textContent = meta.name;
   resetForm();
-  if (person === 'all') { showTab('list'); } else { showTab('new'); }
+  var listVisible = document.getElementById('list').classList.contains('visible');
+  if (person === 'all') { showTab('list'); } else if (listVisible) { showTab('list'); } else { showTab('new'); }
 }
 
 // ---- タブ ----
