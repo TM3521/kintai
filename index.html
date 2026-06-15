@@ -294,10 +294,19 @@ body { font-family: 'Hiragino Sans','Meiryo',sans-serif; background: var(--bg); 
     <div class="form-title">⏰ 遅刻・早退・残業の登録</div>
     <div class="field"><label>日付</label><input type="date" id="l-date"></div>
     <div class="field"><label>種別</label>
-      <select id="l-type" onchange="updateLateTimeLabel()"><option>遅刻</option><option>早退</option><option>遅刻＋早退</option><option>残業</option></select>
+      <select id="l-type" onchange="updateLateTimeLabel()"><option>遅刻</option><option>早退</option><option>遅刻＋早退</option><option>残業</option><option>中抜け</option></select>
     </div>
-    <div class="field"><label id="l-time-label">実際の出退勤時刻</label>
+    <div class="field" id="l-time-field"><label id="l-time-label">実際の出退勤時刻</label>
       <div class="time-row"><select id="l-start"></select><span>〜</span><select id="l-end"></select></div>
+    </div>
+    <div class="field" id="l-duration-field" style="display:none"><label>中抜け時間</label>
+      <select id="l-duration">
+        <option value="30">30分</option>
+        <option value="45">45分</option>
+        <option value="60">60分</option>
+        <option value="90">90分</option>
+        <option value="120">120分</option>
+      </select>
     </div>
     <div class="field"><label>メモ（任意）</label><textarea id="l-memo" placeholder="例：電車遅延、体調不良"></textarea></div>
     <div class="field"><span class="checklist-label">月末に必要な入力作業</span>
@@ -448,9 +457,13 @@ var TYPE_META = {
     ],
     getDetail: function() {
       var ltype = document.getElementById('l-type').value;
+      var memo  = document.getElementById('l-memo').value;
+      if (ltype === '中抜け') {
+        var dur = document.getElementById('l-duration').value;
+        return '中抜け　' + dur + '分' + (memo ? '　' + memo : '');
+      }
       var start = document.getElementById('l-start').value;
       var end   = document.getElementById('l-end').value;
-      var memo  = document.getElementById('l-memo').value;
       return ltype + (start&&end ? '　'+start+'〜'+end : '') + (memo ? '　'+memo : '');
     },
     clearFields: function() {
@@ -458,6 +471,7 @@ var TYPE_META = {
       document.getElementById('l-start').value = '';
       document.getElementById('l-end').value   = '';
       document.getElementById('l-memo').value  = '';
+      document.getElementById('l-duration').selectedIndex = 0;
       updateLateTimeLabel();
     },
   },
@@ -586,6 +600,10 @@ function buildTimeOptions(selectId, defaultVal, includeBlank) {
 }
 
 function updateLateTimeLabel() {
+  var ltype = document.getElementById('l-type').value;
+  var isNukake = ltype === '中抜け';
+  document.getElementById('l-time-field').style.display = isNukake ? 'none' : '';
+  document.getElementById('l-duration-field').style.display = isNukake ? '' : 'none';
   document.getElementById('l-time-label').textContent = '実際の出退勤時刻';
 }
 
@@ -866,13 +884,24 @@ function calcMonthHours(person, year, month) {
       breakdown.push({ date: e.date, label: '18時番（9:00〜18:00）', delta: 0, kind: 'entry' });
     } else if (e.type === 'late') {
       var ltype = e.detail.split('　')[0];
-      var hours = parseTimeRange(e.detail);
-      if (hours !== null) {
-        var delta = (hours - 1) - 8; // 実働（時間差−1h休憩）と標準8hの差（全種別共通）
-        adj += delta;
-        breakdown.push({ date: e.date, label: e.detail, delta: delta, kind: 'entry' });
+      if (ltype === '中抜け') {
+        var nukakeM = e.detail.match(/(\d+)分/);
+        var nukakeDelta = nukakeM ? -(parseInt(nukakeM[1]) / 60) : null;
+        if (nukakeDelta !== null) {
+          adj += nukakeDelta;
+          breakdown.push({ date: e.date, label: e.detail, delta: nukakeDelta, kind: 'entry' });
+        } else {
+          breakdown.push({ date: e.date, label: e.detail, delta: null, kind: 'entry' });
+        }
       } else {
-        breakdown.push({ date: e.date, label: e.detail + '（時刻なし）', delta: null, kind: 'entry' });
+        var hours = parseTimeRange(e.detail);
+        if (hours !== null) {
+          var delta = (hours - 1) - 8; // 実働（時間差−1h休憩）と標準8hの差（全種別共通）
+          adj += delta;
+          breakdown.push({ date: e.date, label: e.detail, delta: delta, kind: 'entry' });
+        } else {
+          breakdown.push({ date: e.date, label: e.detail + '（時刻なし）', delta: null, kind: 'entry' });
+        }
       }
     }
   });
