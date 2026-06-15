@@ -885,14 +885,7 @@ function calcMonthHours(person, year, month) {
     } else if (e.type === 'late') {
       var ltype = e.detail.split('　')[0];
       if (ltype === '中抜け') {
-        var nukakeM = e.detail.match(/(\d+)分/);
-        var nukakeDelta = nukakeM ? -(parseInt(nukakeM[1]) / 60) : null;
-        if (nukakeDelta !== null) {
-          adj += nukakeDelta;
-          breakdown.push({ date: e.date, label: e.detail, delta: nukakeDelta, kind: 'entry' });
-        } else {
-          breakdown.push({ date: e.date, label: e.detail, delta: null, kind: 'entry' });
-        }
+        breakdown.push({ date: e.date, label: e.detail, delta: 0, kind: 'entry' });
       } else {
         var hours = parseTimeRange(e.detail);
         if (hours !== null) {
